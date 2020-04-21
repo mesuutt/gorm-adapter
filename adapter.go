@@ -49,7 +49,7 @@ type Filter struct {
 }
 
 func (c *CasbinRule) TableName() string {
-	return c.TablePrefix + "casbin_rule" //as Gorm keeps table names are plural, and we love consistency
+	return c.TablePrefix + "casbin_rule" // as Gorm keeps table names are plural, and we love consistency
 }
 
 // Adapter represents the Gorm adapter for policy storage.
@@ -346,12 +346,14 @@ func (a *Adapter) SavePolicy(model model.Model) error {
 	if err != nil {
 		return err
 	}
-
+	
+	tx := a.db.Begin()
 	for ptype, ast := range model["p"] {
 		for _, rule := range ast.Policy {
 			line := a.savePolicyLine(ptype, rule)
-			err := a.db.Create(&line).Error
+			err := tx.Create(&line).Error
 			if err != nil {
+				tx.Rollback()
 				return err
 			}
 		}
@@ -360,12 +362,14 @@ func (a *Adapter) SavePolicy(model model.Model) error {
 	for ptype, ast := range model["g"] {
 		for _, rule := range ast.Policy {
 			line := a.savePolicyLine(ptype, rule)
-			err := a.db.Create(&line).Error
+			err := tx.Create(&line).Error
 			if err != nil {
+				tx.Rollback()
 				return err
 			}
 		}
 	}
+	tx.Commit()
 
 	return nil
 }
@@ -380,7 +384,7 @@ func (a *Adapter) AddPolicy(sec string, ptype string, rule []string) error {
 // RemovePolicy removes a policy rule from the storage.
 func (a *Adapter) RemovePolicy(sec string, ptype string, rule []string) error {
 	line := a.savePolicyLine(ptype, rule)
-	err := a.rawDelete(a.db, line) //can't use db.Delete as we're not using primary key http://jinzhu.me/gorm/crud.html#delete
+	err := a.rawDelete(a.db, line) // can't use db.Delete as we're not using primary key http://jinzhu.me/gorm/crud.html#delete
 	return err
 }
 
